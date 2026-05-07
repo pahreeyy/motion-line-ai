@@ -2,67 +2,73 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-// 1. Inisialisasi Discord Client dengan Intent yang dibutuhkan
+// 1. Inisialisasi Discord Client
+// Menggunakan GatewayIntentBits yang benar untuk membaca pesan
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent, // Wajib diaktifkan di Discord Developer Portal
+        GatewayIntentBits.MessageContent, 
     ],
     partials: [Partials.Channel],
 });
 
 // 2. Inisialisasi Gemini AI
+// Kita paksa menggunakan model gemini-1.5-flash yang paling stabil
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-// Menggunakan model gemini-1.5-flash untuk respon teks yang cepat dan optimal
-const model = genAI.getGenerativeModel({ 
-    model: "gemini-1.5-flash" 
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+// Event: Bot Berhasil Online
+client.once('ready', (c) => {
+    console.log(`✅ Ready! Login sebagai ${c.user.tag}`);
 });
 
-// Event saat bot berhasil online
-client.once('clientReady', () => {
-    console.log(`✅ Bot berhasil login sebagai ${client.user.tag}!`);
-});
-
-// Event saat ada pesan masuk
+// Event: Pesan Masuk
 client.on('messageCreate', async (message) => {
-    // Abaikan pesan dari bot lain untuk mencegah infinite loop
+    // 1. Abaikan jika pesan dari bot lain
     if (message.author.bot) return;
 
-    // Trigger bot jika pesan diawali dengan "!ai "
-    const prefix = '!ai ';
-    
-    if (message.content.startsWith(prefix)) {
-        const prompt = message.content.slice(prefix.length).trim();
+    // 2. Cek apakah pesan diawali dengan prefix !ai
+    const prefix = "!ai";
+    if (!message.content.toLowerCase().startsWith(prefix)) return;
 
-        if (!prompt) {
-            return message.reply('Tolong berikan pertanyaan setelah command !ai. Contoh: `!ai buktikan bumi itu bulat`');
+    // Ambil teks setelah prefix
+    const prompt = message.content.slice(prefix.length).trim();
+
+    if (!prompt) {
+        return message.reply("Halo! Mau tanya apa hari ini? Contoh: `!ai apa itu Motion Line Media?` ");
+    }
+
+    try {
+        // Beri tanda bot sedang berpikir
+        await message.channel.sendTyping();
+
+        // 3. Proses ke Gemini
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        let text = response.text();
+
+        // 4. Penanganan batas karakter Discord (Max 2000)
+        if (text.length > 2000) {
+            const chunks = text.match(/[\s\S]{1,2000}/g);
+            for (const chunk of chunks) {
+                await message.reply(chunk);
+            }
+        } else {
+            await message.reply(text);
         }
 
-        try {
-            // Tampilkan indikator "Bot is typing..."
-            await message.channel.sendTyping();
+    } catch (error) {
+        console.error("Kesalahan Gemini API:", error);
 
-            // Minta respon dari Gemini
-            const result = await model.generateContent(prompt);
-            const response = await result.response;
-            let text = response.text();
-
-            // Discord memiliki batas maksimal 2000 karakter per pesan.
-            // Jika lebih dari 2000 karakter, potong pesannya.
-            if (text.length > 2000) {
-                text = text.substring(0, 1996) + '...';
-            }
-
-            // Kirim balasan ke Discord
-            await message.reply(text);
-
-        } catch (error) {
-            console.error('Terjadi kesalahan:', error);
-            message.reply('Maaf, terjadi kesalahan pada server AI saat memproses permintaanmu.');
+        // Jika masih muncul 404, kita beri pesan yang jelas di log
+        if (error.message.includes("404")) {
+            message.reply("⚠️ Error 404: Model tidak ditemukan. Pastikan API Key aktif dan library @google/generative-ai sudah terupdate.");
+        } else {
+            message.reply("Maaf, otak AI-ku sedang panas. Coba lagi nanti ya!");
         }
     }
 });
 
 // Login ke Discord
-client.login(process.env.DISCORD_TOKEN);    
+client.login(process.env.DISCORD_TOKEN);
