@@ -1,86 +1,76 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Partials, Events } = require('discord.js');
+// Tambahkan EmbedBuilder di baris pertama ini
+const { Client, GatewayIntentBits, Partials, Events, EmbedBuilder } = require('discord.js');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-// ==========================================
-// 1. INISIALISASI DISCORD CLIENT
-// ==========================================
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent, // Pastikan ini sudah aktif di Discord Developer Portal
+        GatewayIntentBits.MessageContent,
     ],
     partials: [Partials.Channel],
 });
 
-// ==========================================
-// 2. INISIALISASI GEMINI AI
-// ==========================================
-// Memanggil API Key dari file .env
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// Menggunakan model stabil terbaru (gemini-1.5-flash)
 const model = genAI.getGenerativeModel({ 
-    model: 'gemini-2.5-flash'
+    model: 'gemini-flash-latest', // Pastikan ini model yang sukses kamu pakai
+    systemInstruction: "Kamu adalah asisten bot Discord. Jawablah dengan bahasa yang santai, informatif, dan rapi menggunakan bullet points atau numbering jika perlu. Jangan menggunakan baris baru (enter) yang berlebihan."
 });
 
-// ==========================================
-// 3. EVENT: BOT ONLINE
-// ==========================================
-// Menggunakan Events.ClientReady untuk menghindari DeprecationWarning di log PM2
 client.once(Events.ClientReady, (readyClient) => {
     console.log(`✅ Bot berhasil login sebagai ${readyClient.user.tag}!`);
-    console.log(`🚀 Sistem AI siap menerima perintah di Discord.`);
 });
 
-// ==========================================
-// 4. EVENT: PESAN MASUK
-// ==========================================
 client.on(Events.MessageCreate, async (message) => {
-    // Abaikan pesan yang dikirim oleh bot (termasuk bot ini sendiri) untuk mencegah loop
     if (message.author.bot) return;
 
-    // Tentukan prefix command
-    const prefix = '!ai ';
+    const prefix = '! ';
     
     if (message.content.startsWith(prefix)) {
-        // Ambil teks setelah prefix '!ai '
         const prompt = message.content.slice(prefix.length).trim();
 
-        // Cek jika user hanya mengetik '!ai' tanpa pertanyaan
         if (!prompt) {
-            return message.reply('Tolong berikan pertanyaan setelah command. Contoh: `!ai buktikan bumi itu bulat`');
+            return message.reply('Tolong berikan pertanyaan setelah command. Contoh: `! jelaskan apa itu motion line media`');
         }
 
         try {
-            // Tampilkan indikator "Bot is typing..." di Discord
             await message.channel.sendTyping();
 
-            // Kirim prompt ke server Google Gemini
+            // Minta respon dari Gemini
             const result = await model.generateContent(prompt);
             const response = await result.response;
             let text = response.text();
 
-            // Limit karakter Discord per pesan adalah 2000 karakter.
-            // Jika balasan AI terlalu panjang, kita potong agar tidak error.
-            if (text.length > 2000) {
-                text = text.substring(0, 1995) + '\n...';
+            // Filter Spasi Berlebih
+            text = text.trim().replace(/\n{3,}/g, '\n\n');
+
+            // Limit karakter deskripsi Embed Discord adalah 4096.
+            if (text.length > 4096) {
+                text = text.substring(0, 4090) + '\n...';
             }
 
-            // Balas pesan user
-            await message.reply(text);
+            // ==========================================
+            // MEMBUAT LAYOUT EMBED
+            // ==========================================
+            const aiEmbed = new EmbedBuilder()
+                .setColor('#1E90FF') // Warna garis pinggir (Orange-Red, sesuaikan selera)
+                .setDescription(text) // Isi pesan AI diletakkan di dalam deskripsi
+                .setFooter({ 
+                    text: 'IME Roleplay | Motion Line Media AI', // Footer di bagian bawah
+                    iconURL: client.user.displayAvatarURL() // Menampilkan avatar bot di footer
+                })
+                .setTimestamp(); // Menambahkan waktu pesan dikirim
+
+            // Kirim balasan menggunakan format Embed
+            await message.reply({ embeds: [aiEmbed] });
 
         } catch (error) {
-            // Tangkap dan log error ke terminal VPS jika terjadi masalah
             console.error('❌ Terjadi kesalahan Gemini API:', error);
-            message.reply('Maaf, terjadi kesalahan saat menghubungi server AI. Coba lagi nanti atau cek log servermu.');
+            message.reply('Maaf, terjadi kesalahan saat menghubungi server AI. Coba lagi nanti.');
         }
     }
 });
 
-// ==========================================
-// 5. JALANKAN BOT
-// ==========================================
-// Login menggunakan Token Discord dari file .env
 client.login(process.env.DISCORD_TOKEN);
