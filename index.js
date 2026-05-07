@@ -15,7 +15,9 @@ const client = new Client({
 // 2. Inisialisasi Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 // Menggunakan model gemini-1.5-flash untuk respon teks yang cepat dan optimal
-const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+const model = genAI.getGenerativeModel({ 
+    model: "gemini-1.5-flash" 
+});
 
 // Event saat bot berhasil online
 client.once('clientReady', () => {
