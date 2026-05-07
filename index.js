@@ -59,8 +59,18 @@ const model = genAI.getGenerativeModel({
     systemInstruction: MediaKnowledge
 });
 
-client.once(Events.ClientReady, (readyClient) => {
+client.once(Events.ClientReady, async (readyClient) => {
     console.log(`✅ Bot berhasil login sebagai ${readyClient.user.tag}!`);
+
+    try {
+        await client.application.commands.create({
+            name: 'ping',
+            description: 'Cek status bot!',
+        });
+        console.log('✅ Slash Command /ping berhasil didaftarkan!');
+    } catch (error) {
+        console.error('❌ Gagal mendaftarkan Slash Command:', error);
+    }
 });
 
 client.on(Events.MessageCreate, async (message) => {
@@ -110,6 +120,14 @@ client.on(Events.MessageCreate, async (message) => {
             console.error('❌ Terjadi kesalahan Gemini API:', error);
             message.reply('Maaf, terjadi kesalahan saat menghubungi server AI. Coba lagi nanti.');
         }
+    }
+});
+
+client.on(Events.InteractionCreate, async (interaction) => {
+    if (!interaction.isChatInputCommand()) return;
+
+    if (interaction.commandName === 'ping') {
+        await interaction.reply('Pong! Bot AI berjalan lancar 🏓');
     }
 });
 
