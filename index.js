@@ -16,7 +16,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const model = genAI.getGenerativeModel({ 
     model: 'gemini-flash-latest', // Pastikan ini model yang sukses kamu pakai
-    systemInstruction: "Kamu adalah asisten bot Discord. Jawablah dengan bahasa yang santai, informatif. Jangan menggunakan baris baru (enter) yang berlebihan."
+    systemInstruction: "Kamu adalah asisten bot Discord. Jawablah dengan bahasa yang santai, informatif, dan rapi menggunakan bullet points atau numbering jika perlu. Jangan menggunakan baris baru (enter) yang berlebihan."
 });
 
 client.once(Events.ClientReady, (readyClient) => {
